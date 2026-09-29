@@ -1,0 +1,24 @@
+name: app-template-dev
+
+# Only the project's own Postgres runs here. The app (api + web) runs via `pnpm dev`
+# on the host during template development; full app-in-container is handled by the
+# sandbox runner. Host port 5433 avoids clashing with the control-plane Postgres (5432).
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_db
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

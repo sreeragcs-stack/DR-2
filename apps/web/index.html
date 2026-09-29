@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Tracks scope drift against a PRD with evidence, risk tiers, and review actions for product managers." />
+    <title>Drift Radar</title>
+      <meta property="og:type" content="website" />
+    <meta property="og:title" content="Drift Radar" />
+    <meta property="og:description" content="Tracks scope drift against a PRD with evidence, risk tiers, and review actions for product managers." />
+    <link rel="icon" type="image/png" href="/favicon.png">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!-- Element Selection Script -->
+    <script>
+      (function () {
+        "use strict";
+
+        let isSelectionMode = false;
+        let clickHandler = null;
+        let mouseoverHandler = null;
+        let mouseoutHandler = null;
+        let rightClickHandler = null;
+        let hoveredElement = null;
+        let propertiesTooltip = null;
+        let mousemoveHandler = null;
+        let selectedElement = null;
+        let selectedTooltip = null;
+
+        // Void / non-text elements where the inline text editor would be destructive.
+        var _VOID_TAGS = { img:1, input:1, textarea:1, select:1, video:1, audio:1, canvas:1, iframe:1, hr:1, br:1, svg:1, path:1, circle:1, rect:1, line:1, polyline:1, polygon:1, ellipse:1, g:1 };
+
+        // Returns true when the element contains only direct text (no significant child elements).
+        function isTextEditable(el) {
+          var tag = el.tagName.toLowerCase();
+          if (_VOID_TAGS[tag]) return false;
+          // Walk childNodes: allow text nodes and purely-inline wrappers (em/strong/span/b/i/u/a)
+          var _INLINE = { em:1, strong:1, span:1, b:1, i:1, u:1, a:1, small:1, mark:1, sub:1, sup:1, abbr:1, code:1, time:1 };
+          for (var i = 0; i < el.childNodes.length; i++) {
+            var c = el.childNodes[i];
+            if (c.nodeType === 3) continue; // text node
+            if (c.nodeType === 1 && _INLINE[c.tagName.toLowerCase()]) continue; // inline wrapper
+            // Any other element child (div, img, svg, button inside, etc.) → not simply text-editable
+            if (c.nodeType === 1) return false;
+          }
+          // Must have at least some text
+          var txt = el.textContent ? el.textContent.trim() : "";
+          return txt.length > 0;
+        }
+
+        function getIconForTag(tag) {
+          const icons = {
+            div: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.64531 3.05C3.64531 3.38137 3.37668 3.65 3.04531 3.65C2.71394 3.65 2.44531 3.38137 2.44531 3.05C2.44531 2.71863 2.71394 2.45 3.04531 2.45C3.37668 2.45 3.64531 2.71863 3.64531 3.05Z" fill="currentColor"/><path d="M5.44531 3.05C5.44531 3.38137 5.17668 3.65 4.84531 3.65C4.51394 3.65 4.24531 3.38137 4.24531 3.05C4.24531 2.71863 4.51394 2.45 4.84531 2.45C5.17668 2.45 5.44531 2.71863 5.44531 3.05Z" fill="currentColor"/><path d="M7.24531 3.05C7.24531 3.38137 6.97668 3.65 6.64531 3.65C6.31394 3.65 6.04531 3.38137 6.04531 3.05C6.04531 2.71863 6.31394 2.45 6.64531 2.45C6.97668 2.45 7.24531 2.71863 7.24531 3.05Z" fill="currentColor"/><path d="M0.648438 5.14999H12.6484" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M4.85156 12.05L4.85156 5.44999" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M0.648438 6.64999C0.648438 3.82157 0.648438 2.40735 1.52712 1.52867C2.4058 0.649994 3.82001 0.649994 6.64844 0.649994C9.47687 0.649994 10.8911 0.649994 11.7698 1.52867C12.6484 2.40735 12.6484 3.82157 12.6484 6.64999C12.6484 9.47842 12.6484 10.8926 11.7698 11.7713C10.8911 12.65 9.47687 12.65 6.64844 12.65C3.82001 12.65 2.4058 12.65 1.52712 11.7713C0.942873 11.1871 0.747099 10.3661 0.681498 9.04999" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>`,
+            img: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="2" width="11" height="10" stroke="currentColor" stroke-width="1.3"/><circle cx="5" cy="6" r="1.2" fill="currentColor"/><path d="M2 10l3-3 2 2 2-2 3 3" stroke="currentColor" stroke-width="1.3"/></svg>`,
+            button: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="4" width="11" height="6" rx="2" stroke="currentColor" stroke-width="1.3"/></svg>`,
+            a: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 9l4-4M6.5 3H11v4.5" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.3"/></svg>`,
+            input: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="4" width="11" height="6" stroke="currentColor" stroke-width="1.3"/></svg>`,
+          };
+          return icons[tag] || icons.div;
+        }
+
+        function escAttr(s) {
+          return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+        }
+
+        function createPropertiesTooltip(element, persistent) {
+          persistent = persistent || false;
+          var tag = element.tagName.toLowerCase();
+          var tooltip = document.createElement("div");
+
+          if (!persistent) {
+            tooltip.style.cssText = [
+              "position:absolute","background:#fff","color:#18181b",
+              "border:1px solid #e5e7eb","border-radius:8px","z-index:100000","pointer-events:none",
+              "box-shadow:0 4px 16px rgba(0,0,0,0.12)","white-space:nowrap",
+              "font-family:system-ui,sans-serif","font-size:13px",
+            ].join(";");
+            tooltip.innerHTML = "<div style='display:flex;align-items:center;gap:6px;padding:5px 8px;'><span style='display:inline-flex;align-items:center;gap:5px;background:#fff7ed;border-radius:4px;padding:2px 7px;font-size:11px;font-family:monospace;'><span style='display:inline-flex;align-items:center;justify-content:center;color:#ea580c;border-radius:3px;width:16px;height:16px;flex-shrink:0;'>" + getIconForTag(tag) + "</span><span style='color:#ea580c;'>" + tag + "</span></span></div>";
+            document.body.appendChild(tooltip);
+            if (propertiesTooltip) propertiesTooltip.remove();
+            propertiesTooltip = tooltip;
+            updateTooltipPosition(element, tooltip);
+            return;
+          }
+
+          tooltip.style.cssText = [
+            "position:absolute","background:#fff","color:#18181b",
+            "border:1px solid #e5e7eb","border-radius:8px","z-index:100001","pointer-events:all",
+            "box-shadow:0 4px 16px rgba(0,0,0,0.12)","white-space:nowrap",
+            "font-family:system-ui,sans-serif","font-size:13px",
+          ].join(";");
+          document.body.appendChild(tooltip);
+          if (selectedTooltip) selectedTooltip.remove();
+          selectedTooltip = tooltip;
+
+          // For non-text elements (images, inputs, SVGs, complex containers), show only
+          // the collapsed tag badge — the inline text editor would be destructive.
+          var _canEdit = isTextEditable(element);
+
+          var _orig = element.textContent ? element.textContent.trim() : "";
+          var _curr = _orig;
+          var _s = { bold: false, italic: false, underline: false, color: "", exp: _canEdit };
+          var _B  = "display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid #e5e7eb;border-radius:4px;color:#374151;cursor:pointer;font-size:12px;padding:0 7px;height:24px;";
+          var _BA = "display:inline-flex;align-items:center;justify-content:center;background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;color:#92400e;cursor:pointer;font-size:12px;padding:0 7px;height:24px;";
+          var _DV = "<span style='width:1px;height:18px;background:#e5e7eb;flex-shrink:0;display:inline-block;margin:0 2px;'></span>";
+
+          function applyLive() {
+            var txt = _curr;
+            element.textContent = "";
+            if (_s.bold || _s.italic || _s.underline || _s.color) {
+              var w = document.createElement(_s.bold ? "strong" : "span");
+              var lf = w;
+              if (_s.italic) { var em = document.createElement("em"); lf.appendChild(em); lf = em; }
+              lf.appendChild(document.createTextNode(txt));
+              if (_s.underline) w.style.textDecoration = "underline";
+              if (_s.color) w.style.color = _s.color;
+              element.appendChild(w);
+            } else { element.textContent = txt; }
+          }
+
+          function doSave() {
+            // Find nearest data-infince-id (source file:line:col from component tagger).
+            var _sourceId = "";
+            for (var _s2 = element; _s2 && !_sourceId; _s2 = _s2.parentElement) {
+              if (_s2.dataset && _s2.dataset.infinceId) _sourceId = _s2.dataset.infinceId;
+            }
+            var msg = {
+              type: "SAVE_ELEMENT_EDIT",
+              oldText: _orig, newText: _curr,
+              bold: _s.bold, italic: _s.italic, underline: _s.underline,
+              color: _s.color || null,
+              sourceId: _sourceId || null,
+            };
+            // Only collect context hints as fallback when source_id is unavailable.
+            if (!_sourceId) {
+              var _cls = "", _eid = "", _parentCls = "";
+              var _el = element;
+              for (var _w = 0; _w < 6 && _el; _w++) {
+                var _c = _el.className && typeof _el.className === "string" ? _el.className.trim() : "";
+                if (_c) { if (!_cls) _cls = _c; else if (!_parentCls) { _parentCls = _c; break; } }
+                if (!_eid && _el.id) _eid = _el.id;
+                _el = _el.parentElement;
+              }
+              msg.contextHints = { className: _cls, id: _eid, parentClassName: _parentCls, tag: tag };
+            }
+            window.parent.postMessage(msg, "*");
+          }
+
+          function _updSave() {
+            var sv = tooltip.querySelector("[data-iei-save]"); if (!sv) return;
+            var ok = _curr !== _orig || _s.bold || _s.italic || _s.underline || !!_s.color;
+            sv.style.opacity = ok ? "1" : "0.4";
+            sv.style.cursor = ok ? "pointer" : "not-allowed";
+            sv.style.pointerEvents = ok ? "" : "none";
+          }
+
+          function render() {
+            var _chg = _curr !== _orig || _s.bold || _s.italic || _s.underline || !!_s.color;
+            var _ss = "background:#f3f4f6;color:#18181b;border:1px solid #e5e7eb;border-radius:4px;font-size:12px;font-weight:600;padding:0 10px;height:24px;flex-shrink:0;" + (_chg ? "cursor:pointer;" : "cursor:not-allowed;opacity:0.4;pointer-events:none;");
+            if (_s.exp) {
+              tooltip.innerHTML =
+                "<div style='display:flex;align-items:center;gap:4px;padding:5px 8px;'>" +
+                  "<span style='display:inline-flex;align-items:center;gap:5px;background:#fff7ed;border-radius:4px;padding:2px 7px;font-size:11px;font-family:monospace;flex-shrink:0;'><span style='display:inline-flex;align-items:center;justify-content:center;color:#ea580c;border-radius:3px;width:16px;height:16px;flex-shrink:0;'>" + getIconForTag(tag) + "</span><span style='color:#ea580c;'>" + tag + "</span></span>" +
+                  _DV +
+                  "<input data-iei-t type='text' value='" + escAttr(_curr) + "' placeholder='Text\u2026' style='width:130px;flex-shrink:0;background:#fff;border:1px solid #d1d5db;border-radius:4px;padding:2px 7px;color:#18181b;font-size:12px;outline:none;'/>" +
+                  _DV +
+                  "<button data-iei-b style='" + (_s.bold ? _BA : _B) + "font-weight:bold;'>B</button>" +
+                  "<button data-iei-i style='" + (_s.italic ? _BA : _B) + "font-style:italic;'>I</button>" +
+                  "<button data-iei-u style='" + (_s.underline ? _BA : _B) + "text-decoration:underline;'>U</button>" +
+                  "<label style='position:relative;width:24px;height:24px;flex-shrink:0;cursor:pointer;border-radius:4px;border:1px solid #e5e7eb;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;' title='Text colour'>" +
+                    "<span data-iei-sw style='width:15px;height:15px;border-radius:3px;background:" + (_s.color || "conic-gradient(red,yellow,lime,cyan,blue,magenta,red)") + ";display:block;'></span>" +
+                    "<input type='color' data-iei-col value='" + (_s.color || "#000000") + "' style='position:absolute;opacity:0;width:100%;height:100%;cursor:pointer;'/>" +
+                  "</label>" +
+                  (_s.color ? "<button data-iei-clr style='" + _B + "padding:0 5px;font-size:11px;'>\u00d7</button>" : "") +
+                  _DV +
+                  "<button data-iei-save style='" + _ss + "'>Save</button>" +
+                  "<button data-iei-close style='background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;padding:0 4px;height:24px;line-height:1;margin-left:2px;' title='Collapse'>\u2715</button>" +
+                "</div>";
+            } else {
+              tooltip.innerHTML =
+                "<div style='display:flex;align-items:center;gap:6px;padding:5px 8px;'>" +
+                  "<span style='display:inline-flex;align-items:center;gap:5px;background:#fff7ed;border-radius:4px;padding:2px 7px;font-size:11px;font-family:monospace;'><span style='display:inline-flex;align-items:center;justify-content:center;color:#ea580c;border-radius:3px;width:16px;height:16px;flex-shrink:0;'>" + getIconForTag(tag) + "</span><span style='color:#ea580c;'>" + tag + "</span></span>" +
+                  (_canEdit ? "<button data-iei-expand style='background:#f3f4f6;border:1px solid #e5e7eb;border-radius:4px;color:#374151;cursor:pointer;font-size:11px;padding:1px 8px;height:24px;'>\u270f Edit</button>" : "<span style='color:#9ca3af;font-size:11px;'>Use chat to edit</span>") +
+                "</div>";
+            }
+            wire();
+            updateTooltipPosition(element, tooltip);
+          }
+
+          function wire() {
+            tooltip.addEventListener("mousedown", function(e) { e.stopPropagation(); });
+            tooltip.addEventListener("click", function(e) { e.stopPropagation(); });
+            var inp = tooltip.querySelector("[data-iei-t]");
+            if (inp) {
+              inp.addEventListener("input", function(e) { e.stopPropagation(); _curr = e.target.value; applyLive(); _updSave(); });
+              inp.addEventListener("click", function(e) { e.stopPropagation(); });
+              inp.addEventListener("mousedown", function(e) { e.stopPropagation(); });
+              inp.addEventListener("keydown", function(e) {
+                e.stopPropagation();
+                if (e.key === "Enter") { e.preventDefault(); doSave(); }
+                if (e.key === "Escape") { _s.exp = false; render(); }
+              });
+            }
+            function tog(sel, k) {
+              var b = tooltip.querySelector(sel);
+              if (b) b.addEventListener("click", function(e) { e.stopPropagation(); _s[k] = !_s[k]; render(); applyLive(); });
+            }
+            tog("[data-iei-b]", "bold"); tog("[data-iei-i]", "italic"); tog("[data-iei-u]", "underline");
+            var col = tooltip.querySelector("[data-iei-col]");
+            if (col) {
+              col.addEventListener("input", function(e) { e.stopPropagation(); _s.color = e.target.value; var sw = tooltip.querySelector("[data-iei-sw]"); if (sw) sw.style.background = _s.color; applyLive(); _updSave(); });
+              col.addEventListener("click", function(e) { e.stopPropagation(); });
+            }
+            var clr = tooltip.querySelector("[data-iei-clr]");
+            if (clr) clr.addEventListener("click", function(e) { e.stopPropagation(); _s.color = ""; render(); applyLive(); });
+            var sv = tooltip.querySelector("[data-iei-save]");
+            if (sv) sv.addEventListener("click", function(e) { e.stopPropagation(); doSave(); });
+            var cl = tooltip.querySelector("[data-iei-close]");
+            if (cl) cl.addEventListener("click", function(e) { e.stopPropagation(); _s.exp = false; render(); });
+            var ex = tooltip.querySelector("[data-iei-expand]");
+            if (ex) ex.addEventListener("click", function(e) { e.stopPropagation(); _s.exp = true; render(); });
+          }
+
+          render();
+        }
+
+        function updateTooltipPosition(element, tooltip) {
+          var tip = tooltip || selectedTooltip || propertiesTooltip;
+          if (!tip) return;
+          var rect = element.getBoundingClientRect();
+          var scrollX = window.scrollX || window.pageXOffset;
+          var scrollY = window.scrollY || window.pageYOffset;
+          var top = rect.top + scrollY - tip.offsetHeight - 4;
+          var left = rect.left + scrollX;
+          if (top < scrollY) top = rect.bottom + scrollY + 4;
+          if (left + tip.offsetWidth > window.innerWidth + scrollX)
+            left = window.innerWidth + scrollX - tip.offsetWidth - 4;
+          if (left < scrollX) left = scrollX + 4;
+          tip.style.top = top + "px";
+          tip.style.left = left + "px";
+        }
+
+        function removeTooltip() {
+          if (propertiesTooltip && propertiesTooltip.parentNode) {
+            propertiesTooltip.parentNode.removeChild(propertiesTooltip);
+            propertiesTooltip = null;
+          }
+        }
+
+        function enableElementSelection() {
+          isSelectionMode = true;
+          if (selectedElement) {
+            selectedElement.style.outline = "";
+            selectedElement.style.backgroundColor = "";
+            selectedElement = null;
+          }
+          if (selectedTooltip) {
+            selectedTooltip.remove();
+            selectedTooltip = null;
+          }
+
+          clickHandler = function (event) {
+            if (!isSelectionMode) return;
+            event.preventDefault();
+            event.stopPropagation();
+            var element = event.target;
+            if (selectedElement && selectedElement !== element) {
+              selectedElement.style.outline = "";
+              selectedElement.style.backgroundColor = "";
+            }
+            selectedElement = element;
+            element.style.outline = "2px solid #0757AE";
+            element.style.backgroundColor = "rgba(7,87,174,0.1)";
+            createPropertiesTooltip(element, true);
+            var rect = element.getBoundingClientRect();
+            // Walk up to find nearest data-infince-id (source file:line:col from component tagger).
+            var _sid = "";
+            for (var _s = element; _s && !_sid; _s = _s.parentElement) {
+              if (_s.dataset && _s.dataset.infinceId) _sid = _s.dataset.infinceId;
+            }
+            window.parent.postMessage(
+              {
+                type: "ELEMENT_SELECTION_RESPONSE",
+                elementInfo: {
+                  className: element.className || "",
+                  tagName: element.tagName.toLowerCase(),
+                  text: element.textContent ? element.textContent.trim() : "",
+                  id: element.id || "",
+                  innerHTML: element.outerHTML || "",
+                  sourceId: _sid || null,
+                  x: rect.left,
+                  y: rect.top,
+                  w: rect.width,
+                  h: rect.height,
+                },
+              },
+              "*",
+            );
+          };
+
+          rightClickHandler = function (event) {
+            if (!isSelectionMode) return;
+            event.preventDefault();
+            event.stopPropagation();
+            disableElementSelection();
+          };
+
+          mouseoverHandler = function (event) {
+            if (!isSelectionMode) return;
+            var element = event.target;
+            if (hoveredElement === element) return;
+            if (hoveredElement && hoveredElement !== selectedElement) {
+              hoveredElement.style.outline = "";
+              hoveredElement.style.backgroundColor = "";
+            }
+            if (element !== selectedElement) {
+              element.style.outline = "2px solid #0757AE";
+              element.style.backgroundColor = "rgba(7,87,174,0.08)";
+            }
+            hoveredElement = element;
+            if (!selectedElement) createPropertiesTooltip(element);
+          };
+
+          mouseoutHandler = function (event) {
+            if (!isSelectionMode) return;
+            var element = event.target;
+            if (element !== selectedElement) {
+              element.style.outline = "";
+              element.style.backgroundColor = "";
+            }
+            if (element !== selectedElement) removeTooltip();
+            if (hoveredElement === element) hoveredElement = null;
+          };
+
+          mousemoveHandler = function () {
+            if (!isSelectionMode) return;
+            if (selectedElement) updateTooltipPosition(selectedElement, selectedTooltip);
+            else if (hoveredElement) updateTooltipPosition(hoveredElement, propertiesTooltip);
+          };
+
+          document.addEventListener("mousemove", mousemoveHandler, true);
+          document.addEventListener("click", clickHandler, true);
+          document.addEventListener("contextmenu", rightClickHandler, true);
+          document.addEventListener("mouseover", mouseoverHandler, true);
+          document.addEventListener("mouseout", mouseoutHandler, true);
+          window.addEventListener("scroll", mousemoveHandler, true);
+          document.body.style.cursor = "crosshair";
+          document.body.style.userSelect = "none";
+        }
+
+        function clearSelectedElement() {
+          if (selectedElement) {
+            selectedElement.style.outline = "";
+            selectedElement.style.backgroundColor = "";
+            selectedElement = null;
+          }
+          if (selectedTooltip) {
+            selectedTooltip.remove();
+            selectedTooltip = null;
+          }
+        }
+
+        function disableElementSelection() {
+          isSelectionMode = false;
+          if (hoveredElement && hoveredElement !== selectedElement) {
+            hoveredElement.style.outline = "";
+            hoveredElement.style.backgroundColor = "";
+            hoveredElement = null;
+          }
+          removeTooltip();
+          if (clickHandler) { document.removeEventListener("click", clickHandler, true); clickHandler = null; }
+          if (rightClickHandler) { document.removeEventListener("contextmenu", rightClickHandler, true); rightClickHandler = null; }
+          if (mousemoveHandler) {
+            document.removeEventListener("mousemove", mousemoveHandler, true);
+            window.removeEventListener("scroll", mousemoveHandler, true);
+            mousemoveHandler = null;
+          }
+          if (mouseoverHandler) { document.removeEventListener("mouseover", mouseoverHandler, true); mouseoverHandler = null; }
+          if (mouseoutHandler) { document.removeEventListener("mouseout", mouseoutHandler, true); mouseoutHandler = null; }
+          document.body.style.cursor = "";
+          document.body.style.userSelect = "";
+        }
+
+        window.addEventListener("message", function (event) {
+          var msg = event.data;
+          if (!msg) return;
+          if (msg.type === "ENABLE_ELEMENT_SELECTION") enableElementSelection();
+          else if (msg.type === "DISABLE_ELEMENT_SELECTION") disableElementSelection();
+          else if (msg.type === "CLEAR_ELEMENT_SELECTION") clearSelectedElement();
+          else if (msg.type === "APPLY_ELEMENT_EDIT") {
+            // Apply text/formatting/colour changes to the currently selected element live.
+            if (!selectedElement) return;
+            var newText = msg.newText != null ? String(msg.newText) : selectedElement.textContent;
+            selectedElement.textContent = "";
+            if (msg.bold || msg.italic || msg.underline || msg.color) {
+              var wrapper = document.createElement(msg.bold ? "strong" : "span");
+              var leaf = wrapper;
+              if (msg.italic) { var em = document.createElement("em"); leaf.appendChild(em); leaf = em; }
+              leaf.appendChild(document.createTextNode(newText));
+              if (msg.underline) wrapper.style.textDecoration = "underline";
+              if (msg.color) wrapper.style.color = msg.color;
+              selectedElement.appendChild(wrapper);
+            } else {
+              selectedElement.textContent = newText;
+            }
+          }
+        });
+
+        window.enableElementSelection = enableElementSelection;
+        window.disableElementSelection = disableElementSelection;
+      })();
+    </script>
+  </body>
+</html>
+<!-- @infince-font-applied -->
+<!-- @infince-meta-applied -->

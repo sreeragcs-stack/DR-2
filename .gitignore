@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.turbo/
+.env
+*.log
+.pnpm-store
+.data/
+
+# Managed by the app builder; excluded from this export.
+.dev.log
+.template
+LOGO.md
+NOTES.md
+PLAN.md
+TASKS.json
+tasks-history.json
+plans/

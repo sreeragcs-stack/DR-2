@@ -1,0 +1,10 @@
+import { useNavigate } from 'react-router-dom';
+import type { Drift } from '@/lib/api';
+import { Card, CardContent } from '@/components/ui/card';
+import { StatusBadge, TierBadge } from './DriftBadges';
+
+function preview(value: string) { return value.length > 130 ? `${value.slice(0, 130).trim()}...` : value; }
+export default function DriftCards({ items }: { items: Drift[] }) {
+  const navigate = useNavigate();
+  return <div className="space-y-3 md:hidden">{items.filter(item => item?.drift).map(item => <Card key={item.drift.id} role="button" tabIndex={0} className="cursor-pointer shadow-sm transition outline-none hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring" onClick={() => navigate(`/drifts/${item.drift.id}`)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/drifts/${item.drift.id}`); } }}><CardContent className="space-y-4 p-5"><div className="flex items-center justify-between gap-3"><StatusBadge status={item.drift.status} /><span className="font-mono text-xs text-muted-foreground">{item.drift.id}</span></div><p className="text-sm leading-6">{preview(item.drift.whyFlagged)}</p><dl className="grid grid-cols-2 gap-3 text-sm"><div><dt className="text-xs text-muted-foreground">Source</dt><dd>{item.drift.sourceType}{item.drift.sourceReference ? `, ${item.drift.sourceReference}` : ''}<br />{item.drift.sourceDate}</dd></div><div><dt className="text-xs text-muted-foreground">Affects</dt><dd>{item.requirement ? `${item.requirement.id}, ${item.requirement.title}` : <span className="text-muted-foreground">No related requirement</span>}</dd></div><div><dt className="text-xs text-muted-foreground">Buffer</dt><dd>{item.drift.bufferDays === null ? 'No ticket yet' : `${item.drift.bufferDays} days`}</dd></div><div><dt className="text-xs text-muted-foreground">Impact</dt><dd><TierBadge tier={item.drift.impactTier} /></dd></div></dl></CardContent></Card>)}</div>;
+}

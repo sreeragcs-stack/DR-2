@@ -1,0 +1,14 @@
+{
+  "name": "app-template",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "db:push": "pnpm --filter @app/api db:push",
+    "db:seed": "pnpm --filter @app/api db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  }
+}
